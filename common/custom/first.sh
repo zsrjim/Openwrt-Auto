@@ -57,8 +57,8 @@ Diy_two() {
     for dir in "${required_dirs[@]}"; do
         if [[ ! -d "$dir" ]]; then
             SYNCHRONISE="NO"
-            [[ "${BENDI_VERSION}" == "2" ]] && TIME r "缺少编译主文件bulid，正在同步上游仓库..."
-            [[ "${BENDI_VERSION}" == "1" ]] && TIME r "缺少编译主文件operates，正在同步上游仓库..."
+            [[ "${BENDI_VERSION}" == "2" ]] && TIME r "缺少编译主文件bulid，请检查仓库文件（已禁用自动同步上游）..."
+            [[ "${BENDI_VERSION}" == "1" ]] && TIME r "缺少编译主文件operates，请检查仓库文件（已禁用自动同步上游）..."
             return
         fi
     done
@@ -71,7 +71,7 @@ Diy_two() {
             else
                 SYNCHRONISE="NO"
                 tongbu_message="缺少$file文件"
-                TIME r "缺少$file文件，正在同步上游仓库..."
+                TIME r "缺少$file文件，请检查仓库文件（已禁用自动同步上游）..."
                 return
             fi
         fi
@@ -79,14 +79,11 @@ Diy_two() {
 
     if [[ -f "${COMPILE_PATH}/relevance/actions_version" ]]; then
         ACTIONS_VERSION2=$(sed -nE 's/^[[:space:]]*ACTIONS_VERSION[[:space:]]*=[[:space:]]*"?([0-9.]+)"?.*/\1/p' "${COMPILE_PATH}/relevance/actions_version")
-        if [[ "$ACTIONS_VERSION1" != "$ACTIONS_VERSION2" ]]; then
-            sudo rm -rf /etc/oprelyo*
-            SYNCHRONISE="NO"
-            tongbu_message="和上游版本不一致"
-            TIME r "和上游版本不一致，正在同步上游仓库..."
-        else
-            SYNCHRONISE="YES"
+        if [[ -n "${ACTIONS_VERSION2}" && "${ACTIONS_VERSION1}" != "${ACTIONS_VERSION2}" ]]; then
+            TIME y "检测到 actions_version 不一致：${ACTIONS_VERSION2} -> ${ACTIONS_VERSION1}（已自动更新；自动同步上游已禁用）"
+            echo "ACTIONS_VERSION=${ACTIONS_VERSION1}" > "${COMPILE_PATH}/relevance/actions_version" || true
         fi
+        SYNCHRONISE="YES"
     else
         SYNCHRONISE="YES"
     fi
@@ -96,137 +93,8 @@ Diy_two() {
 Diy_three() {
     cd "${GITHUB_WORKSPACE}"
     if [[ "$SYNCHRONISE" == "NO" ]]; then
-        if [[ "${BENDI_VERSION}" == "1" ]]; then
-            shangyou=$(mktemp -d)
-            if git clone --single-branch --depth=1 --branch=main https://github.com/281677160/build-actions "${shangyou}"; then
-                if [[ -d "${OPERATES_PATH}" ]]; then
-                    mv "${OPERATES_PATH}" backups
-                    cp -Rf "$shangyou/build" "${OPERATES_PATH}"
-                    mv backups "${OPERATES_PATH}/backups"
-                else
-                    cp -Rf "$shangyou/build" "${OPERATES_PATH}"
-                fi
-                rm -rf "$shangyou"
-                chmod -R +x "${OPERATES_PATH}"
-
-                local settings_files=($(find "${OPERATES_PATH}" -name "settings.ini"))
-                for X in "${settings_files[@]}"; do
-                    sed -i '/SSH_ACTIONS/d' "$X"
-                    sed -i '/INFORMATION_NOTICE/d' "$X"
-                    sed -i '/UPLOAD_FIRMWARE/d' "$X"
-                    sed -i '/UPLOAD_RELEASE/d' "$X"
-                    sed -i '/CACHEWRTBUILD_SWITCH/d' "$X"
-                    sed -i '/COMPILATION_INFORMATION/d' "$X"
-                    sed -i '/UPDATE_FIRMWARE_ONLINE/d' "$X"
-                    sed -i '/RETAIN_DAYS/d' "$X"
-                    sed -i '/RETAIN_MINUTE/d' "$X"
-                    sed -i '/KEEP_LATEST/d' "$X"
-                    echo 'PACKAGING_FIRMWARE="true"           # 自动把armsr_rootfs_tar_gz,打包成.img格式（true=开启）（false=关闭）' >> "$X"
-                    echo 'MODIFY_CONFIGURATION="true"         # 是否每次都询问您要不要设置自定义文件（true=开启）（false=关闭）' >> "$X"
-                done
-
-                local relevance_dirs=($(find "${OPERATES_PATH}" -type d -name "relevance" | grep -v 'backups'))
-                for X in "${relevance_dirs[@]}"; do
-                    rm -rf "${X}"/{*.ini,*start,run_number}
-                    echo "ACTIONS_VERSION=${ACTIONS_VERSION1}" > "${X}/actions_version"
-                    echo "请勿修改和删除此文件夹内的任何文件" > "${X}/README"
-                    echo "$(date +%Y%m%d%H%M%S)" > "${X}/start"
-                done
-
-                if [[ -d "${OPERATES_PATH}/backups" ]]; then
-                    TIME g "同步上游仓库完成，operates 文件夹内有个 backups 备份包，您以前的文件都存放在这里"
-                else
-                    TIME g "同步上游仓库完成"
-                fi
-                TIME y "因刚同步上游文件，请设置好 [operates] 文件夹内的配置后，再次使用命令编译"
-                exit 1
-            else
-                TIME r "同步上游仓库失败，注意网络环境，请重新再运行命令试试"
-                exit 1
-            fi
-        else
-            rm -rf repogx shangyou
-            git clone --depth=1 -b "${GIT_REFNAME}" https://user:${REPO_TOKEN}@github.com/${GIT_REPOSITORY}.git repogx
-            if ! git clone -q --single-branch --depth=1 --branch=main https://github.com/281677160/build-actions shangyou; then
-              git clone --depth=1 https://github.com/281677160/build-actions shangyou
-            fi
-            if [[ ! -d "repogx" ]]; then
-              TIME r "同步上游仓库失败，请注意密匙制作时候勾选是否正确"
-              exit 1
-            fi
-            if [[ ! -d "shangyou" ]]; then
-              TIME r "下载上游仓库失败,请重新尝试看看"
-              exit 1
-            fi
-            cd repogx
-            git reset --hard HEAD
-            cd "${GITHUB_WORKSPACE}"
-            [[ -d "repogx/backups" ]] && rm -rf "repogx/backups"
-            [[ -d "backups" ]] && rm -rf "backups"
-            mkdir -p backups
-            cp -Rf repogx/* backups
-            cp -Rf repogx/.github/workflows backups/workflows
-            cd repogx
-            rm -rf *
-            rm -rf .github/workflows/*
-            cd "${GITHUB_WORKSPACE}"
-            mkdir -p repogx/.github/workflows
-            cp -Rf shangyou/* repogx
-            cp -Rf shangyou/.github/workflows/* repogx/.github/workflows
-            if [[ "$GIT_REPOSITORY" != "281677160/build-actions" ]]; then
-                cp -Rf backups repogx/backups
-            fi
-
-            local relevance_dirs=($(find "${GITHUB_WORKSPACE}/repogx" -type d -name "relevance" | grep -v 'backups'))
-            for X in "${relevance_dirs[@]}"; do
-                rm -rf "${X}"/{*.ini,*start,run_number}
-                echo "ACTIONS_VERSION=${ACTIONS_VERSION1}" > "${X}/actions_version"
-                echo "请勿修改和删除此文件夹内的任何文件" > "${X}/README"
-                echo "$(date +%Y%m%d%H%M%S)" > "${X}/start"
-            done
-
-            BANBEN_SHUOMING="同步上游于 $(date +%Y.%m%d.%H%M.%S)"
-            chmod -R +x repogx
-            cd repogx
-            find "$UPLOAD" -type f -size +100M -exec rm -f {} \; || true
-            git status
-            git add .
-            git commit -m "${BANBEN_SHUOMING}"
-            PUSH_SUCCESS=false
-            RETRY_COUNT=0
-            MAX_RETRIES=5
-            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-              RETRY_COUNT=$((RETRY_COUNT+1))
-              echo "尝试推送 (${RETRY_COUNT}/${MAX_RETRIES})..."
-              # 每次重试前重置HEAD并重新添加文件
-              if [ $RETRY_COUNT -gt 1 ]; then
-                echo "重置HEAD并重新添加文件..."
-                git reset --hard HEAD
-                git add .
-              fi
-              if git push --force "https://${REPO_TOKEN}@github.com/${GIT_REPOSITORY}" HEAD:${GIT_REFNAME}; then
-                PUSH_SUCCESS=true
-                break
-              else
-                echo "推送失败，尝试恢复..."
-                # 清除可能损坏的缓存
-                git gc --prune=now
-                git remote prune origin
-                # 增加随机延迟，避免持续峰值请求
-                DELAY=$((RANDOM % 5 + 2))
-                echo "等待${DELAY}秒后重试..."
-                sleep $DELAY
-              fi
-            done
-
-            # 检查推送结果
-            if [ "$PUSH_SUCCESS" = false ]; then
-              TIME r "同步上游仓库失败，请注意密匙是否正确"
-            else
-              TIME g "同步上游仓库完成，请重新设置好文件再继续编译"
-            fi
-            exit 1
-        fi
+        TIME r "检测到编译文件缺失或版本不一致，但已禁用自动同步上游。请检查仓库 build/operates 与 settings.ini 是否完整，然后重新运行。"
+        exit 1
     fi
 }
 
