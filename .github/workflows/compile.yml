@@ -100,14 +100,24 @@ jobs:
         echo -e "$(nproc) thread compile"
         make -j$(nproc) || {
           echo "Build failed, trying fallback (and gvisor go1.26 fix if needed)..."
-          # Fix gvisor build tags on Go >= 1.26 (prevents runtime_constants_go125/go126 redeclare)
-          if grep -R "runtime_constants_go12" -n staging_dir >/dev/null 2>&1; then
-            find staging_dir -type f -path "*/pkg/mod/gvisor.dev/gvisor@*/pkg/sentry/kernel/*runtime_constants_go125.go" 2>/dev/null | while read -r f; do
-              sed -i 's#^//go:build go1\.25#//go:build go1.25 \&\& !go1.26#' "$f" || true
-              sed -i 's#^// \+build go1\.25#// +build go1.25,!go1.26#' "$f" || true
-            done
+          shopt -s nullglob
+          for f in dl/go-mod-cache/gvisor.dev/gvisor@*/pkg/sync/runtime_constants_go125.go; do
+            [ -f "$f" ] || continue
+            if ! grep -q "!go1.26" "$f"; then
+              sed -i 's#^//go:build go1\.25$#//go:build go1.25 \&\& !go1.26#' "$f" || true
+              sed -i 's#^// +build go1\.25$#// +build go1.25,!go1.26#' "$f" || true
+              echo "patched: $f"
+            fi
+          done
+          shopt -u nullglob
+
+          if [ -d package/feeds/datout/xray-core ]; then
+            make package/feeds/datout/xray-core/clean V=s || true
+            make package/feeds/datout/xray-core/compile -j1 V=s
+            make -j$(nproc)
+          else
+            make -j1 V=s
           fi
-          make -j1 V=s
         }
     - name: 自动打包armsr_rootfs_tar_gz
       if: steps.compile.outcome == 'success' && env.ONLINE_FIRMWARE == 'true'
