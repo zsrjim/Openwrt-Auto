@@ -54,7 +54,7 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        sudo bash -c 'bash <(curl -fsSL https://github.com/datout/Openwrt-Auto/raw/main/common/custom/ubuntu.sh)'
+        sudo -E bash "${GITHUB_WORKSPACE}/common/custom/ubuntu.sh"
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /${{ env.DIY_WORK }}
         sudo chown ${USER}:${GROUPS} /${{ env.DIY_WORK }}
@@ -98,8 +98,17 @@ jobs:
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 V=s
-
+        make -j$(nproc) || {
+          echo "Build failed, trying fallback (and gvisor go1.26 fix if needed)..."
+          # Fix gvisor build tags on Go >= 1.26 (prevents runtime_constants_go125/go126 redeclare)
+          if grep -R "runtime_constants_go12" -n staging_dir >/dev/null 2>&1; then
+            find staging_dir -type f -path "*/pkg/mod/gvisor.dev/gvisor@*/pkg/sentry/kernel/*runtime_constants_go125.go" 2>/dev/null | while read -r f; do
+              sed -i 's#^//go:build go1\.25#//go:build go1.25 \&\& !go1.26#' "$f" || true
+              sed -i 's#^// \+build go1\.25#// +build go1.25,!go1.26#' "$f" || true
+            done
+          fi
+          make -j1 V=s
+        }
     - name: 自动打包armsr_rootfs_tar_gz
       if: steps.compile.outcome == 'success' && env.ONLINE_FIRMWARE == 'true'
       uses: ./.github/actions/aarch

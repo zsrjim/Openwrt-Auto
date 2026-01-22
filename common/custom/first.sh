@@ -22,17 +22,21 @@ echo -e "\n${Color}${2}\033[0m"
 # 第一个自定义函数
 Diy_one() {
     cd "${GITHUB_WORKSPACE}"
-    # 更改LINSHI_COMMON变量时,需要同步修改本地编译文件和云编译的mishi文件
+# Prefer repo-local common scripts; allow override via pre-set LINSHI_COMMON
+if [[ -z "${LINSHI_COMMON}" ]]; then
+  if [[ -d "${GITHUB_WORKSPACE}/common" ]]; then
+    export LINSHI_COMMON="${GITHUB_WORKSPACE}/common"
+  else
     export LINSHI_COMMON="/tmp/common"
-    echo "LINSHI_COMMON=${LINSHI_COMMON}" >> "${GITHUB_ENV}"
-    
-    if [[ ! -d "${LINSHI_COMMON}" ]]; then
-      TIME r "缺少对比版本号文件"
-      SYNCHRONISE="NO"
-      Diy_three
-      Diy_four
-    fi
-    
+  fi
+fi
+echo "LINSHI_COMMON=${LINSHI_COMMON}" >> "${GITHUB_ENV}"
+# If common dir missing, stop early with clear error
+if [[ ! -d "${LINSHI_COMMON}" ]]; then
+  TIME r "缺少 common 目录：${LINSHI_COMMON}"
+  exit 1
+fi
+
     export COMMON_SH="${LINSHI_COMMON}/common.sh"
     export UPGRADE_SH="${LINSHI_COMMON}/upgrade.sh"
     export CONFIG_TXT="${LINSHI_COMMON}/config.txt"

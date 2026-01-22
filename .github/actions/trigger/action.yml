@@ -19,7 +19,11 @@ runs:
 
         # 清理和复制文件
         [[ -d "$UPLOAD/build/${FOLDER_NAME}" ]] && rm -rf "$UPLOAD/build/${FOLDER_NAME}"
-        cp -Rf "$CONFIG_TXT" "$MYCONFIG_FILE"
+        if [ -f "$CONFIG_TXT" ]; then
+          cp -Rf "$CONFIG_TXT" "$MYCONFIG_FILE"
+        else
+          echo "WARN: CONFIG_TXT not found: $CONFIG_TXT (skip)";
+        fi
         cp -Rf "$COMPILE_PATH" "$UPLOAD/build/$FOLDER_NAME"
         [[ -d "$UPLOAD/build/common" ]] && rm -rf "$UPLOAD/build/common"
         cp -Rf "$GITHUB_WORKSPACE/.github/workflows/compile.yml" "$UPLOAD/.github/workflows/compile.yml"
