@@ -99,14 +99,22 @@ jobs:
         cd openwrt
         echo -e "$(nproc) thread compile"
         make -j$(nproc) || {
-          echo "Build failed, trying fallback (and gvisor go1.26 fix if needed)..."
+          echo "Build failed, trying fallback (gvisor go1.26 fix)..."
           shopt -s nullglob
           for f in dl/go-mod-cache/gvisor.dev/gvisor@*/pkg/sync/runtime_constants_go125.go; do
             [ -f "$f" ] || continue
-            if ! grep -q "!go1.26" "$f"; then
-              sed -i 's#^//go:build go1\.25$#//go:build go1.25 \&\& !go1.26#' "$f" || true
-              sed -i 's#^// +build go1\.25$#// +build go1.25,!go1.26#' "$f" || true
+            # normalize CRLF
+            sed -i 's/\r$//' "$f" || true
+            # patch build tags (tolerate spaces)
+            sed -i -E 's#^//go:build[[:space:]]+go1\.25[[:space:]]*$#//go:build go1.25 \&\& !go1.26#' "$f" || true
+            sed -i -E 's#^//[[:space:]]+\+build[[:space:]]+go1\.25[[:space:]]*$#// +build go1.25,!go1.26#' "$f" || true
+            # if still active, remove it (Go>=1.26 should not use go125 file)
+            if grep -Eq '^//go:build[[:space:]]+go1\.25[[:space:]]*$' "$f"; then
+              echo "WARN: patch not applied, removing $f"
+              rm -f "$f" || true
+            else
               echo "patched: $f"
+              head -n 3 "$f" || true
             fi
           done
           shopt -u nullglob
