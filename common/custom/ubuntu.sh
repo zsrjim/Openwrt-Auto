@@ -35,7 +35,7 @@ apt-get install -y libfuse-dev
 # apt-get install -y snapd
 
 # 修复：原脚本依赖 tinyurl 拉取包列表，但该链接当前已 404，会导致依赖缺失
-# 原行：apt-get install -y $(curl -fsSL https://tinyurl.com/ubuntu2204-make-openwrt)
+apt-get install -y $(curl -fsSL https://raw.githubusercontent.com/ophub/amlogic-s9xxx-openwrt/refs/heads/main/make-openwrt/scripts/ubuntu2204-make-openwrt-depends)
 
 # 安装gcc g++
 GCC_VERSION="13"
