@@ -996,18 +996,21 @@ fi
 # fw4(nftables) 开关（可选）
 if [[ "${Enable_FW4}" == "1" ]]; then
   echo "启用 fw4(nftables) 防火墙..."
-  # 如果源码不存在 firewall4，则尝试从 OpenWrt 官方拉取（LEDE 可能默认没有）
+  # 如果源码不存在 firewall4，则从 LEDE 拉取（优先与当前源码一致）
   if [[ ! -d "${HOME_PATH}/package/network/config/firewall4" ]]; then
     mkdir -p "${HOME_PATH}/package/network/config"
-    gitsvn https://github.com/openwrt/openwrt/tree/openwrt-23.05/package/network/config/firewall4 "${HOME_PATH}/package/network/config/firewall4"
+    gitsvn https://github.com/coolsnowwolf/lede/tree/master/package/network/config/firewall4 "${HOME_PATH}/package/network/config/firewall4"
   fi
 
-  # 选择 fw4 相关组件（尽量最小集）
+  # 选择 fw4 相关组件（强制 fw3/fw4 互斥）
   sed -i \
     -e '/^CONFIG_PACKAGE_firewall4=/d' \
+    -e '/^# CONFIG_PACKAGE_firewall4 is not set/d' \
     -e '/^CONFIG_PACKAGE_firewall=/d' \
     -e '/^# CONFIG_PACKAGE_firewall is not set/d' \
     -e '/^CONFIG_PACKAGE_nftables=/d' \
+    -e '/^CONFIG_PACKAGE_rpcd-mod-nft=/d' \
+    -e '/^CONFIG_PACKAGE_luci-lib-nftables=/d' \
     -e '/^CONFIG_PACKAGE_kmod-nft-tproxy=/d' \
     -e '/^CONFIG_PACKAGE_kmod-nft-socket=/d' \
     "${HOME_PATH}/.config"
@@ -1016,8 +1019,29 @@ if [[ "${Enable_FW4}" == "1" ]]; then
 CONFIG_PACKAGE_firewall4=y
 # CONFIG_PACKAGE_firewall is not set
 CONFIG_PACKAGE_nftables=y
+CONFIG_PACKAGE_rpcd-mod-nft=y
+CONFIG_PACKAGE_luci-lib-nftables=y
 CONFIG_PACKAGE_kmod-nft-tproxy=y
 CONFIG_PACKAGE_kmod-nft-socket=y
+EOF
+else
+  echo "使用 fw3(iptables) 防火墙..."
+
+  sed -i \
+    -e '/^CONFIG_PACKAGE_firewall4=/d' \
+    -e '/^# CONFIG_PACKAGE_firewall4 is not set/d' \
+    -e '/^CONFIG_PACKAGE_nftables=/d' \
+    -e '/^CONFIG_PACKAGE_rpcd-mod-nft=/d' \
+    -e '/^CONFIG_PACKAGE_luci-lib-nftables=/d' \
+    -e '/^CONFIG_PACKAGE_kmod-nft-tproxy=/d' \
+    -e '/^CONFIG_PACKAGE_kmod-nft-socket=/d' \
+    -e '/^CONFIG_PACKAGE_firewall=/d' \
+    -e '/^# CONFIG_PACKAGE_firewall is not set/d' \
+    "${HOME_PATH}/.config"
+
+  cat >> "${HOME_PATH}/.config" <<'EOF'
+CONFIG_PACKAGE_firewall=y
+# CONFIG_PACKAGE_firewall4 is not set
 EOF
 fi
 
@@ -1038,6 +1062,48 @@ function Diy_prevent() {
 TIME y "正在执行：判断插件有否冲突减少编译错误"
 cd ${HOME_PATH}
 make defconfig > /dev/null 2>&1
+# --- 强制 fw3/fw4 互斥（防止 make defconfig 回填） ---
+if [[ "${Enable_FW4}" == "1" ]]; then
+  sed -i \
+    -e '/^CONFIG_PACKAGE_firewall4=/d' \
+    -e '/^# CONFIG_PACKAGE_firewall4 is not set/d' \
+    -e '/^CONFIG_PACKAGE_firewall=/d' \
+    -e '/^# CONFIG_PACKAGE_firewall is not set/d' \
+    -e '/^CONFIG_PACKAGE_nftables=/d' \
+    -e '/^CONFIG_PACKAGE_rpcd-mod-nft=/d' \
+    -e '/^CONFIG_PACKAGE_luci-lib-nftables=/d' \
+    -e '/^CONFIG_PACKAGE_kmod-nft-tproxy=/d' \
+    -e '/^CONFIG_PACKAGE_kmod-nft-socket=/d' \
+    "${HOME_PATH}/.config"
+
+  cat >> "${HOME_PATH}/.config" <<'EOF'
+CONFIG_PACKAGE_firewall4=y
+# CONFIG_PACKAGE_firewall is not set
+CONFIG_PACKAGE_nftables=y
+CONFIG_PACKAGE_rpcd-mod-nft=y
+CONFIG_PACKAGE_luci-lib-nftables=y
+CONFIG_PACKAGE_kmod-nft-tproxy=y
+CONFIG_PACKAGE_kmod-nft-socket=y
+EOF
+else
+  sed -i \
+    -e '/^CONFIG_PACKAGE_firewall4=/d' \
+    -e '/^# CONFIG_PACKAGE_firewall4 is not set/d' \
+    -e '/^CONFIG_PACKAGE_nftables=/d' \
+    -e '/^CONFIG_PACKAGE_rpcd-mod-nft=/d' \
+    -e '/^CONFIG_PACKAGE_luci-lib-nftables=/d' \
+    -e '/^CONFIG_PACKAGE_kmod-nft-tproxy=/d' \
+    -e '/^CONFIG_PACKAGE_kmod-nft-socket=/d' \
+    -e '/^CONFIG_PACKAGE_firewall=/d' \
+    -e '/^# CONFIG_PACKAGE_firewall is not set/d' \
+    "${HOME_PATH}/.config"
+
+  cat >> "${HOME_PATH}/.config" <<'EOF'
+CONFIG_PACKAGE_firewall=y
+# CONFIG_PACKAGE_firewall4 is not set
+EOF
+fi
+
 
 if [[ `grep -c "CONFIG_PACKAGE_luci-app-ipsec-server=y" ${HOME_PATH}/.config` -eq '1' ]]; then
   if [[ `grep -c "CONFIG_PACKAGE_luci-app-ipsec-vpnd=y" ${HOME_PATH}/.config` -eq '1' ]]; then
