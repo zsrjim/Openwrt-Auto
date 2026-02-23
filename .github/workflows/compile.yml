@@ -99,16 +99,7 @@ jobs:
         set -euxo pipefail
         cd openwrt
 
-        # 关键：在 run 里显式 export，确保 download.pl 能读到
-        export DOWNLOAD_TOOL_CUSTOM=aria2c
         export ARIA2C_OPTIONS="--connect-timeout=20 --timeout=20 --max-tries=20 --retry-wait=3 --lowest-speed-limit=200K"
-
-        # 兜底：就算仍走 curl，也让“低速”触发失败从而换镜像
-        export CURL_OPTIONS="--speed-time 60 --speed-limit 300000"
-
-        echo "DOWNLOAD_TOOL_CUSTOM=$DOWNLOAD_TOOL_CUSTOM"
-        command -v aria2c && aria2c -v | head -n 1
-        grep -n "DOWNLOAD_TOOL_CUSTOM" scripts/download.pl | head -n 3 || true
 
         ( while true; do
             echo "[$(date)] dl=$(du -sh dl 2>/dev/null | awk '{print $1}' || echo 0) files=$(ls -1 dl 2>/dev/null | wc -l || echo 0)"
@@ -116,11 +107,8 @@ jobs:
             sleep 60
           done ) &
 
-        # 把变量前缀到 make 命令上（确保传给 download.pl）
-        DOWNLOAD_TOOL_CUSTOM="$DOWNLOAD_TOOL_CUSTOM" \
-        ARIA2C_OPTIONS="$ARIA2C_OPTIONS" \
-        CURL_OPTIONS="$CURL_OPTIONS" \
-        make download -j4 V=s
+        # 关键：用 CONFIG_DOWNLOAD_TOOL_CUSTOM 驱动 include/download.mk 导出 DOWNLOAD_TOOL_CUSTOM
+        make download -j4 V=s CONFIG_DOWNLOAD_TOOL_CUSTOM=aria2c
 
     - name: 开始编译固件
       id: compile
