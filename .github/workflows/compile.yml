@@ -87,13 +87,23 @@ jobs:
         ccache: 'true'
         mixkey: "${{ env.TARGET_PROFILE }}"
         prefix: ${{ github.workspace }}/openwrt
-        
+
     - name: 下载软件包
       id: package
       run: |
+        set -euxo pipefail
         cd openwrt
-        make download -j8
-    
+
+        echo "DL before: $(du -sh dl 2>/dev/null | awk '{print $1}' || echo 0) files=$(ls -1 dl 2>/dev/null | wc -l || echo 0)"
+
+        ( while true; do
+            echo "[$(date)] dl=$(du -sh dl 2>/dev/null | awk '{print $1}' || echo 0) files=$(ls -1 dl 2>/dev/null | wc -l || echo 0)"
+            ps -ef | egrep 'wget|curl|git|svn|aria2' | head -n 20 || true
+            sleep 60
+          done ) &
+
+        make download -j8 V=s    
+
     - name: 开始编译固件
       id: compile
       if: steps.package.outcome == 'success'
