@@ -97,12 +97,14 @@ jobs:
       id: package
       env:
         DOWNLOAD_TOOL_CUSTOM: aria2c
+        # 低于 200KB/s 持续一段时间会更积极换源（aria2 会从更快镜像拉）
         ARIA2C_OPTIONS: "--connect-timeout=20 --timeout=20 --max-tries=20 --retry-wait=3 --lowest-speed-limit=200K"
       run: |
         set -euxo pipefail
         cd openwrt
 
-        echo "DL before: $(du -sh dl 2>/dev/null | awk '{print $1}' || echo 0) files=$(ls -1 dl 2>/dev/null | wc -l || echo 0)"
+        echo "DOWNLOAD_TOOL_CUSTOM=$DOWNLOAD_TOOL_CUSTOM"
+        command -v aria2c && aria2c -v | head -n 1
 
         ( while true; do
             echo "[$(date)] dl=$(du -sh dl 2>/dev/null | awk '{print $1}' || echo 0) files=$(ls -1 dl 2>/dev/null | wc -l || echo 0)"
